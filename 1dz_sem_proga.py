@@ -57,10 +57,8 @@ class ResultOutput:
     def plot_rcs(data, save_path=None):
         plt.figure(figsize=(10, 6))
         plt.plot(data['freq'], data['rcs'])
-        plt.xscale('log')
-        plt.yscale('log')
-        plt.xlabel('Frequency (Hz)')
-        plt.ylabel('RCS (m²)')
+        plt.xlabel('Частота (Гц)')
+        plt.ylabel('ЭПР (м²)')
         plt.title('ЭПР идеально проводящей сферы')
         plt.grid(True)
         if save_path:
