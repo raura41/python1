@@ -51,8 +51,44 @@ class DipoleAntenna:
 class ResultVisualizer:
     """Класс для визуализации результатов"""
     
-    def __init__(self, antenna):
+    def __init__(self, antenna, file_path=None):
         self.antenna = antenna
+        self.file_data = None
+        
+        if file_path:
+            self.load_file_data(file_path)
+    
+    def load_file_data(self, file_path):
+        """Загрузка данных из файла"""
+        try:
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+            
+            # Пропускаем заголовок
+            data_lines = []
+            for line in lines[2:]:  # Пропускаем первые две строки
+                if line.strip():
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        try:
+                            theta = float(parts[0])
+                            # Берем данные только для phi=90 (вторая колонка)
+                            if float(parts[1]) == 90.0:
+                                d_dBi = float(parts[2])
+                                # Преобразуем из дБи в разы
+                                d_linear = 10**(d_dBi / 10)
+                                data_lines.append([theta, d_dBi, d_linear])
+                        except (ValueError, IndexError):
+                            continue
+            
+            if data_lines:
+                self.file_data = np.array(data_lines)
+                print(f"Загружено {len(self.file_data)} точек из файла")
+            else:
+                print("Не удалось загрузить данные из файла")
+                
+        except Exception as e:
+            print(f"Ошибка при чтении файла: {e}")
     
     def plot_diagrams(self):
         """Построение всех графиков"""
@@ -66,20 +102,39 @@ class ResultVisualizer:
         # Декартовы графики
         fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
         
-        ax1.plot(theta, D_analytical, 'b-', linewidth=2)
+        # Аналитические графики
+        ax1.plot(theta, D_analytical, 'b-', linewidth=2, label='Аналитический расчет')
+        ax2.plot(theta, D_analytical_dB, 'b-', linewidth=2, label='Аналитический расчет')
+        
+        # Добавляем данные из файла, если они есть
+        if self.file_data is not None:
+            # Нормализуем данные из файла относительно максимума аналитического расчета
+            file_theta = self.file_data[:, 0]
+            file_D_linear = self.file_data[:, 2]
+            file_D_dB = self.file_data[:, 1]
+            
+            # Нормализуем к максимуму аналитического расчета
+            norm_factor_linear = np.max(D_analytical) / np.max(file_D_linear)
+            file_D_linear_norm = file_D_linear * norm_factor_linear
+            file_D_dB_norm = 10 * np.log10(file_D_linear_norm + 1e-10)
+            
+            ax1.plot(file_theta, file_D_linear_norm, 'r--', linewidth=1.5, label='Данные из файла')
+            ax2.plot(file_theta, file_D_dB_norm, 'r--', linewidth=1.5, label='Данные из файла')
+        
         ax1.set_xlabel('Угол θ, градусы')
         ax1.set_ylabel('КНД D(θ)')
         ax1.set_title('Диаграмма направленности (линейный масштаб)')
         ax1.grid(True, alpha=0.3)
         ax1.set_xlim(0, 180)
         ax1.set_ylim(bottom=0)
+        ax1.legend()
         
-        ax2.plot(theta, D_analytical_dB, 'b-', linewidth=2)
         ax2.set_xlabel('Угол θ, градусы')
         ax2.set_ylabel('КНД D(θ), дБ')
         ax2.set_title('Диаграмма направленности (децибелы)')
         ax2.grid(True, alpha=0.3)
         ax2.set_xlim(0, 180)
+        ax2.legend()
         
         plt.tight_layout()
         plt.savefig('dipole_cartesian.png', dpi=150)
@@ -89,11 +144,20 @@ class ResultVisualizer:
         fig2, (ax3, ax4) = plt.subplots(1, 2, figsize=(12, 6), subplot_kw={'projection': 'polar'})
         
         theta_rad = np.deg2rad(theta)
-        ax3.plot(theta_rad, D_analytical, 'b-', linewidth=2)
+        ax3.plot(theta_rad, D_analytical, 'b-', linewidth=2, label='Аналитический расчет')
         ax3.set_title('Полярная диаграмма (линейный масштаб)')
         
-        ax4.plot(theta_rad, D_analytical_dB + 30, 'b-', linewidth=2)
-        ax4.set_title('Полярная диаграмма (дБ + 30)')
+        ax4.plot(theta_rad, D_analytical_dB, 'b-', linewidth=2, label='Аналитический расчет')
+        ax4.set_title('Полярная диаграмма (дБ)')
+        
+        # Добавляем данные из файла на полярные графики
+        if self.file_data is not None:
+            file_theta_rad = np.deg2rad(file_theta)
+            ax3.plot(file_theta_rad, file_D_linear_norm, 'r--', linewidth=1.5, label='Данные из файла')
+            ax4.plot(file_theta_rad, file_D_dB_norm, 'r--', linewidth=1.5, label='Данные из файла')
+        
+        ax3.legend(loc='upper right')
+        ax4.legend(loc='upper right')
         
         plt.tight_layout()
         plt.savefig('dipole_polar.png', dpi=150)
@@ -103,7 +167,7 @@ class ResultVisualizer:
 def main():
     """Главная функция"""
     antenna = DipoleAntenna(f_ghz=4.0, ratio_2l_lambda=0.7)
-    visualizer = ResultVisualizer(antenna)
+    visualizer = ResultVisualizer(antenna, file_path='1.txt')
     visualizer.plot_diagrams()
 
 
